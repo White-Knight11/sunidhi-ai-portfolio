@@ -10,7 +10,7 @@ A Streamlit portfolio website with an AI chat assistant, project gallery, and pa
    pip install -r requirements.txt
    ```
 
-2. Copy `secrets.toml.example` to `.streamlit/secrets.toml` and set `ANTHROPIC_API_KEY` and `ADMIN_PASSWORD`.
+2. Copy `secrets.toml.example` to `.streamlit/secrets.toml` and set `GEMINI_API_KEY` and `ADMIN_PASSWORD`.
 3. Start the app:
 
    ```bash
@@ -21,7 +21,7 @@ A Streamlit portfolio website with an AI chat assistant, project gallery, and pa
 
 1. Push this repository to GitHub.
 2. In [Streamlit Community Cloud](https://share.streamlit.io/), create an app from the repository, select the deployment branch, and set the app file to `app.py`.
-3. Add `ANTHROPIC_API_KEY` and `ADMIN_PASSWORD` in the app's **Settings → Secrets** using TOML format. Never commit real keys or passwords.
+3. Add `GEMINI_API_KEY` and `ADMIN_PASSWORD` in the app's **Settings → Secrets** using TOML format. Never commit real keys or passwords.
 4. Save and wait for the app to deploy.
 
 The portfolio PDF and profile image are part of the public repository and will be accessible to anyone who can access the app.
