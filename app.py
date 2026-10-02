@@ -247,7 +247,7 @@ with st.sidebar:
     if IMAGE_PATH.exists():
         st.image(str(IMAGE_PATH))
     st.markdown('<p class="side-name">Sunidhi Rusia</p>', unsafe_allow_html=True)
-    st.markdown('<p class="side-role">AI Architect & Data Engineer</p>', unsafe_allow_html=True)
+    st.markdown('<p class="side-role">Business Analyst & Data Strategist</p>', unsafe_allow_html=True)
     st.markdown(
         """
         <div class="side-links">
