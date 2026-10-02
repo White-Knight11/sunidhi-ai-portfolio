@@ -7,9 +7,10 @@ import uuid
 from datetime import date
 from pathlib import Path
 
-import anthropic
 import requests
 import streamlit as st
+from google import genai
+from google.genai import errors, types
 from PIL import Image, ImageOps
 from pypdf import PdfReader
 
@@ -94,20 +95,20 @@ html, body, .stApp, [class*="css"] { font-family: 'Manrope', 'Segoe UI', sans-se
 
 
 # ============================================================
-# 4. CLAUDE CLIENT
+# 4. GEMINI CLIENT
 # ============================================================
 
-ANTHROPIC_API_KEY = get_secret("ANTHROPIC_API_KEY")
-MODEL = get_secret("CLAUDE_MODEL", "claude-sonnet-5-5")
+GEMINI_API_KEY = get_secret("GEMINI_API_KEY")
+MODEL = get_secret("GEMINI_MODEL", "gemini-2.5-flash")
 
-if not ANTHROPIC_API_KEY:
+if not GEMINI_API_KEY:
     st.error(
-        "ANTHROPIC_API_KEY is missing. Add it to `.streamlit/secrets.toml` "
+        "GEMINI_API_KEY is missing. Add it to `.streamlit/secrets.toml` "
         "(local) or the app's Secrets settings (Streamlit Cloud)."
     )
     st.stop()
 
-client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+client = genai.Client(api_key=GEMINI_API_KEY)
 
 
 # ============================================================
@@ -333,20 +334,23 @@ Rules:
 
 
 def stream_reply(messages):
-    with client.messages.stream(
+    contents = [
+        types.Content(
+            role="model" if message["role"] == "assistant" else "user",
+            parts=[types.Part.from_text(text=message["content"])],
+        )
+        for message in messages
+    ]
+    for chunk in client.models.generate_content_stream(
         model=MODEL,
-        max_tokens=1024,
-        system=[
-            {
-                "type": "text",
-                "text": build_system_prompt(),
-                "cache_control": {"type": "ephemeral"},
-            }
-        ],
-        messages=messages,
-    ) as stream:
-        for text in stream.text_stream:
-            yield text
+        contents=contents,
+        config=types.GenerateContentConfig(
+            system_instruction=build_system_prompt(),
+            max_output_tokens=1024,
+        ),
+    ):
+        if chunk.text:
+            yield chunk.text
 
 
 def render_chat():
@@ -375,7 +379,7 @@ def render_chat():
     with st.chat_message("user"):
         st.markdown(prompt)
 
-    # Claude needs the conversation to start with a user turn; keep last 20 messages
+    # Gemini conversations must begin with a user turn; keep the last 20 messages
     api_messages = st.session_state.messages[-20:]
     while api_messages and api_messages[0]["role"] != "user":
         api_messages = api_messages[1:]
@@ -384,12 +388,12 @@ def render_chat():
         try:
             answer = st.write_stream(stream_reply(api_messages))
             st.session_state.messages.append({"role": "assistant", "content": answer})
-        except anthropic.AuthenticationError:
+        except errors.APIError as e:
             st.session_state.messages.pop()
-            st.error("Claude rejected the API key. Check ANTHROPIC_API_KEY in your secrets.")
+            st.error(f"Gemini API error: {e}")
         except Exception as e:
             st.session_state.messages.pop()
-            st.error(f"Couldn't reach Claude right now.\n\n`{e}`")
+            st.error(f"Couldn't reach Gemini right now.\n\n`{e}`")
 
 
 # ============================================================
