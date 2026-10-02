@@ -134,6 +134,21 @@ portfolio_data = extract_portfolio_data()
 # ============================================================
 
 def load_projects():
+    if github_enabled():
+        repo = get_secret("GITHUB_REPO")
+        branch = get_secret("GITHUB_BRANCH", "main")
+        url = f"https://api.github.com/repos/{repo}/contents/data/projects.json"
+        headers = {
+            "Authorization": f"Bearer {get_secret('GITHUB_TOKEN')}",
+            "Accept": "application/vnd.github+json",
+        }
+        response = requests.get(url, headers=headers, params={"ref": branch}, timeout=20)
+        response.raise_for_status()
+        content = response.json().get("content")
+        if not content:
+            raise ValueError("GitHub did not return the project data file contents.")
+        return json.loads(base64.b64decode(content).decode("utf-8"))
+
     try:
         return json.loads(DATA_FILE.read_text(encoding="utf-8"))
     except Exception:

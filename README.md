@@ -36,4 +36,4 @@ GITHUB_REPO = "your-username/your-repo"
 GITHUB_BRANCH = "main"
 ```
 
-Use a fine-grained GitHub token limited to this repository with **Contents: Read and write** permission. Without these optional values, project changes are temporary on the hosted app.
+Use a fine-grained GitHub token limited to this repository with **Contents: Read and write** permission. With GitHub sync enabled, the app commits project changes and reads the latest project list from that branch after refresh. Without these optional values, project changes are temporary on the hosted app.
