@@ -6,6 +6,7 @@ import os
 import uuid
 from datetime import date
 from pathlib import Path
+from urllib.parse import urlparse
 
 import requests
 import streamlit as st
@@ -134,21 +135,6 @@ portfolio_data = extract_portfolio_data()
 # ============================================================
 
 def load_projects():
-    if github_enabled():
-        repo = get_secret("GITHUB_REPO")
-        branch = get_secret("GITHUB_BRANCH", "main")
-        url = f"https://api.github.com/repos/{repo}/contents/data/projects.json"
-        headers = {
-            "Authorization": f"Bearer {get_secret('GITHUB_TOKEN')}",
-            "Accept": "application/vnd.github+json",
-        }
-        response = requests.get(url, headers=headers, params={"ref": branch}, timeout=20)
-        response.raise_for_status()
-        content = response.json().get("content")
-        if not content:
-            raise ValueError("GitHub did not return the project data file contents.")
-        return json.loads(base64.b64decode(content).decode("utf-8"))
-
     try:
         return json.loads(DATA_FILE.read_text(encoding="utf-8"))
     except Exception:
@@ -202,7 +188,7 @@ def process_image(uploaded_file):
     return buf.getvalue()
 
 
-def add_project(title, description, files):
+def add_project(title, description, files, link=None):
     projects = load_projects()
     pid = uuid.uuid4().hex[:8]
     PROJECT_IMG_DIR.mkdir(parents=True, exist_ok=True)
@@ -224,6 +210,7 @@ def add_project(title, description, files):
             "description": description,
             "images": images,
             "date": date.today().strftime("%b %Y"),
+            **({"link": link} if link else {}),
         },
     )
     save_projects_local(projects)
@@ -262,7 +249,7 @@ with st.sidebar:
     if IMAGE_PATH.exists():
         st.image(str(IMAGE_PATH))
     st.markdown('<p class="side-name">Sunidhi Rusia</p>', unsafe_allow_html=True)
-    st.markdown('<p class="side-role">Business Analyst & Data Strategist</p>', unsafe_allow_html=True)
+    st.markdown('<p class="side-role">AI Architect & Data Engineer</p>', unsafe_allow_html=True)
     st.markdown(
         """
         <div class="side-links">
@@ -431,6 +418,8 @@ def render_projects():
                 st.markdown(f'<div class="proj-title">{p["title"]}</div>', unsafe_allow_html=True)
                 st.markdown(f'<div class="proj-date">{p.get("date", "")}</div>', unsafe_allow_html=True)
                 st.write(p["description"])
+                if p.get("link"):
+                    st.link_button("View project", p["link"], use_container_width=True)
                 if len(imgs) > 1:
                     with st.expander(f"More photos ({len(imgs) - 1})"):
                         st.image(imgs[1:], width=240)
@@ -467,18 +456,25 @@ def render_manage():
     with st.form("add_project", clear_on_submit=True):
         title = st.text_input("Title")
         description = st.text_area("What did you build, and what was the result?", height=140)
+        link = st.text_input("Project link (optional)", help="Add a URL to the project or demo.")
         files = st.file_uploader(
             "Pictures", type=["png", "jpg", "jpeg", "webp"], accept_multiple_files=True
         )
         submitted = st.form_submit_button("Save project", type="primary")
 
     if submitted:
+        project_link = link.strip()
+        parsed_link = urlparse(project_link) if project_link else None
         if not title.strip() or not description.strip():
             st.error("Add a title and a description.")
+        elif project_link and (
+            parsed_link.scheme not in {"http", "https"} or not parsed_link.netloc
+        ):
+            st.error("Enter a valid project URL starting with http:// or https://.")
         else:
             with st.spinner("Saving..."):
                 try:
-                    add_project(title.strip(), description.strip(), files or [])
+                    add_project(title.strip(), description.strip(), files or [], project_link or None)
                     st.toast("Project saved")
                     st.rerun()
                 except Exception as e:
