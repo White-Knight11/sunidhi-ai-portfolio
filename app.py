@@ -135,10 +135,15 @@ portfolio_data = extract_portfolio_data()
 # ============================================================
 
 def load_projects():
-    try:
-        return json.loads(DATA_FILE.read_text(encoding="utf-8"))
-    except Exception:
+    if not DATA_FILE.exists():
         return []
+    try:
+        projects = json.loads(DATA_FILE.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as e:
+        raise ValueError(f"Project data in {DATA_FILE} is not valid JSON.") from e
+    if not isinstance(projects, list):
+        raise ValueError(f"Project data in {DATA_FILE} must be a JSON array.")
+    return projects
 
 
 def save_projects_local(projects):
@@ -160,6 +165,8 @@ def github_commit(repo_path, content, message):
     }
     url = f"https://api.github.com/repos/{repo}/contents/{repo_path}"
     r = requests.get(url, headers=headers, params={"ref": branch}, timeout=20)
+    if r.status_code not in {200, 404}:
+        r.raise_for_status()
     sha = r.json().get("sha") if r.status_code == 200 else None
 
     if content is None:
@@ -445,11 +452,13 @@ def render_manage():
         return
 
     if github_enabled():
-        st.caption("Changes are committed to GitHub; the live site redeploys in about a minute.")
+        st.caption("Project changes are synced to GitHub and survive app restarts.")
     else:
-        st.caption(
-            "GitHub sync is off, so changes are saved on this machine only. "
-            "Commit and push `data/` and `assets/` to publish them."
+        st.warning(
+            "Project changes are currently saved only in temporary app storage and can be lost "
+            "when the app restarts. To keep them permanently, add `GITHUB_TOKEN`, `GITHUB_REPO`, "
+            "and `GITHUB_BRANCH` to this app's Streamlit Cloud Secrets. The token needs "
+            "Contents read/write access to the repository."
         )
 
     st.subheader("Add a project")
@@ -475,7 +484,10 @@ def render_manage():
             with st.spinner("Saving..."):
                 try:
                     add_project(title.strip(), description.strip(), files or [], project_link or None)
-                    st.toast("Project saved")
+                    if github_enabled():
+                        st.toast("Project saved and synced to GitHub.")
+                    else:
+                        st.toast("Project saved temporarily; enable GitHub sync to keep it.")
                     st.rerun()
                 except Exception as e:
                     st.error(f"Couldn't save the project: {e}")
