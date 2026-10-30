@@ -30,7 +30,7 @@ The portfolio PDF and profile image are part of the public repository and will b
 
 ## Project management persistence
 
-The app filesystem on Streamlit Community Cloud is not persistent. To have additions and deletions from **Manage** survive restarts and redeployments, add these values to the app's Secrets:
+The app filesystem on Streamlit Community Cloud is temporary. Without GitHub sync, project additions and deletions may disappear when the app restarts. To persist them, add these values to the app's Secrets:
 
 ```toml
 GITHUB_TOKEN = "github_pat_..."
@@ -38,4 +38,4 @@ GITHUB_REPO = "your-username/your-repo"
 GITHUB_BRANCH = "main"
 ```
 
-Use a fine-grained GitHub token limited to this repository with **Contents: Read and write** permission. Without these optional values, project changes are temporary on the hosted app.
+Use a fine-grained GitHub token limited to this repository with **Contents: Read and write** permission. Keep the token private; do not commit it or paste it into chat. After saving the secrets, verify that Manage reports GitHub sync is enabled and that new projects appear in `data/projects.json` in the repository.
