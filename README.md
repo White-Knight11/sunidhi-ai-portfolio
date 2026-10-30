@@ -34,7 +34,7 @@ The app filesystem on Streamlit Community Cloud is temporary. Without GitHub syn
 
 ```toml
 GITHUB_TOKEN = "github_pat_..."
-GITHUB_REPO = "your-username/your-repo"
+GITHUB_REPO = "White-Knight11/sunidhi-ai-portfolio"
 GITHUB_BRANCH = "main"
 ```
 
