@@ -1,18 +1,10 @@
-import base64
-import hmac
-import io
 import json
 import os
-import uuid
-from datetime import date
 from pathlib import Path
-from urllib.parse import urlparse
 
-import requests
 import streamlit as st
 from google import genai
 from google.genai import errors, types
-from PIL import Image, ImageOps
 from pypdf import PdfReader
 
 # ============================================================
@@ -23,7 +15,6 @@ BASE_DIR = Path(__file__).parent
 IMAGE_PATH = BASE_DIR / "profile.jpg"
 PDF_PATH = BASE_DIR / "Sunidhi_Portfolio.pdf"
 DATA_FILE = BASE_DIR / "data" / "projects.json"
-PROJECT_IMG_DIR = BASE_DIR / "assets" / "projects"
 
 st.set_page_config(page_title="Sunidhi AI", page_icon="✨", layout="wide")
 
@@ -85,10 +76,6 @@ html, body, .stApp, [class*="css"] { font-family: 'Manrope', 'Segoe UI', sans-se
 }
 .stButton > button:hover { border-color: #4F46E5; color: #4F46E5; }
 
-/* Project cards */
-[data-testid="stVerticalBlockBorderWrapper"] { border-radius: 14px; }
-.proj-title { font-size: 1.2rem; font-weight: 700; margin: 8px 0 2px 0; }
-.proj-date { font-size: .8rem; color: #64748B; margin-bottom: 6px; }
 </style>
 """,
     unsafe_allow_html=True,
@@ -131,7 +118,7 @@ portfolio_data = extract_portfolio_data()
 
 
 # ============================================================
-# 6. PROJECT STORAGE (repo files; optional auto-commit to GitHub)
+# 6. PROJECT DATA (read-only)
 # ============================================================
 
 def load_projects():
@@ -144,108 +131,6 @@ def load_projects():
     if not isinstance(projects, list):
         raise ValueError(f"Project data in {DATA_FILE} must be a JSON array.")
     return projects
-
-
-def save_projects_local(projects):
-    DATA_FILE.parent.mkdir(parents=True, exist_ok=True)
-    DATA_FILE.write_text(json.dumps(projects, indent=2, ensure_ascii=False), encoding="utf-8")
-
-
-def github_enabled():
-    return bool(get_secret("GITHUB_TOKEN") and get_secret("GITHUB_REPO"))
-
-
-def github_commit(repo_path, content, message):
-    """Create/update a file in the GitHub repo. content=None deletes it."""
-    repo = get_secret("GITHUB_REPO")
-    branch = get_secret("GITHUB_BRANCH", "main")
-    headers = {
-        "Authorization": f"Bearer {get_secret('GITHUB_TOKEN')}",
-        "Accept": "application/vnd.github+json",
-    }
-    url = f"https://api.github.com/repos/{repo}/contents/{repo_path}"
-    r = requests.get(url, headers=headers, params={"ref": branch}, timeout=20)
-    if r.status_code not in {200, 404}:
-        r.raise_for_status()
-    sha = r.json().get("sha") if r.status_code == 200 else None
-
-    if content is None:
-        if sha:
-            requests.delete(
-                url, headers=headers, timeout=20,
-                json={"message": message, "sha": sha, "branch": branch},
-            ).raise_for_status()
-        return
-
-    payload = {
-        "message": message,
-        "content": base64.b64encode(content).decode(),
-        "branch": branch,
-    }
-    if sha:
-        payload["sha"] = sha
-    requests.put(url, headers=headers, json=payload, timeout=30).raise_for_status()
-
-
-def process_image(uploaded_file):
-    img = ImageOps.exif_transpose(Image.open(uploaded_file)).convert("RGB")
-    img.thumbnail((1600, 1600))
-    buf = io.BytesIO()
-    img.save(buf, "JPEG", quality=85, optimize=True)
-    return buf.getvalue()
-
-
-def add_project(title, description, files, link=None):
-    projects = load_projects()
-    pid = uuid.uuid4().hex[:8]
-    PROJECT_IMG_DIR.mkdir(parents=True, exist_ok=True)
-
-    images = []
-    for i, f in enumerate(files):
-        data = process_image(f)
-        rel = f"assets/projects/{pid}_{i}.jpg"
-        (BASE_DIR / rel).write_bytes(data)
-        if github_enabled():
-            github_commit(rel, data, f"Add image for project: {title}")
-        images.append(rel)
-
-    projects.insert(
-        0,
-        {
-            "id": pid,
-            "title": title,
-            "description": description,
-            "images": images,
-            "date": date.today().strftime("%b %Y"),
-            **({"link": link} if link else {}),
-        },
-    )
-    save_projects_local(projects)
-    if github_enabled():
-        github_commit(
-            "data/projects.json",
-            json.dumps(projects, indent=2, ensure_ascii=False).encode(),
-            f"Add project: {title}",
-        )
-
-
-def delete_project(pid):
-    projects = load_projects()
-    target = next((p for p in projects if p["id"] == pid), None)
-    if not target:
-        return
-    for rel in target.get("images", []):
-        (BASE_DIR / rel).unlink(missing_ok=True)
-        if github_enabled():
-            github_commit(rel, None, f"Remove image for project: {target['title']}")
-    projects = [p for p in projects if p["id"] != pid]
-    save_projects_local(projects)
-    if github_enabled():
-        github_commit(
-            "data/projects.json",
-            json.dumps(projects, indent=2, ensure_ascii=False).encode(),
-            f"Remove project: {target['title']}",
-        )
 
 
 # ============================================================
@@ -275,10 +160,6 @@ with st.sidebar:
     st.markdown("**Skills**")
     st.write("**AI/ML:** Llama-3.3-70B, Azure OpenAI, Claude API, Prompt Engineering, NLP")
     st.write("**Data:** Python, SQL, Pandas, XGBoost, AWS S3, Supabase")
-    with st.expander("Featured projects"):
-        st.markdown("- **Athenica Generative AI:** Enterprise Llama-3 deployment.")
-        st.markdown("- **StartupHub:** Full-stack talent platform via Claude API.")
-        st.markdown("- **Agentic Coach:** Microsoft Copilot Studio system.")
 
 
 # ============================================================
@@ -287,17 +168,12 @@ with st.sidebar:
 
 st.markdown('<h1 class="hero-title">Hi, I\'m Sunidhi AI</h1>', unsafe_allow_html=True)
 st.markdown(
-    '<p class="hero-sub">Ask about my experience, skills, and coursework, '
-    "or browse the projects I\'ve built.</p>",
+    '<p class="hero-sub">Ask about my experience, skills, projects, and coursework.</p>',
     unsafe_allow_html=True,
 )
 
-page = st.radio(
-    "Section",
-    ["Chat", "Projects", "Manage"],
-    horizontal=True,
-    label_visibility="collapsed",
-)
+page = "Chat"
+
 
 
 # ============================================================
@@ -406,117 +282,10 @@ def render_chat():
 
 
 # ============================================================
-# 10. PROJECTS PAGE
-# ============================================================
-
-def render_projects():
-    projects = load_projects()
-    if not projects:
-        st.info("No projects yet. Open **Manage** to add your first one.")
-        return
-
-    cols = st.columns(2, gap="large")
-    for i, p in enumerate(projects):
-        with cols[i % 2]:
-            with st.container(border=True):
-                imgs = [str(BASE_DIR / r) for r in p.get("images", []) if (BASE_DIR / r).exists()]
-                if imgs:
-                    st.image(imgs[0])
-                st.markdown(f'<div class="proj-title">{p["title"]}</div>', unsafe_allow_html=True)
-                st.markdown(f'<div class="proj-date">{p.get("date", "")}</div>', unsafe_allow_html=True)
-                st.write(p["description"])
-                if p.get("link"):
-                    st.link_button("View project", p["link"], use_container_width=True)
-                if len(imgs) > 1:
-                    with st.expander(f"More photos ({len(imgs) - 1})"):
-                        st.image(imgs[1:], width=240)
 
 
 # ============================================================
-# 11. MANAGE PAGE (password protected)
+# 10. CHAT ROUTER
 # ============================================================
 
-def render_manage():
-    admin_password = get_secret("ADMIN_PASSWORD")
-    if not admin_password:
-        st.warning("Set ADMIN_PASSWORD in your secrets to enable this section.")
-        return
-
-    if not st.session_state.get("admin_ok"):
-        pw = st.text_input("Password", type="password")
-        if pw and hmac.compare_digest(str(pw), str(admin_password)):
-            st.session_state.admin_ok = True
-            st.rerun()
-        elif pw:
-            st.error("Incorrect password.")
-        return
-
-    if github_enabled():
-        st.caption("Project changes are synced to GitHub and survive app restarts.")
-    else:
-        st.warning(
-            "Project changes are currently saved only in temporary app storage and can be lost "
-            "when the app restarts. To keep them permanently, add `GITHUB_TOKEN`, `GITHUB_REPO`, "
-            "and `GITHUB_BRANCH` to this app's Streamlit Cloud Secrets. The token needs "
-            "Contents read/write access to the repository."
-        )
-
-    st.subheader("Add a project")
-    with st.form("add_project", clear_on_submit=True):
-        title = st.text_input("Title")
-        description = st.text_area("What did you build, and what was the result?", height=140)
-        link = st.text_input("Project link (optional)", help="Add a URL to the project or demo.")
-        files = st.file_uploader(
-            "Pictures", type=["png", "jpg", "jpeg", "webp"], accept_multiple_files=True
-        )
-        submitted = st.form_submit_button("Save project", type="primary")
-
-    if submitted:
-        project_link = link.strip()
-        parsed_link = urlparse(project_link) if project_link else None
-        if not title.strip() or not description.strip():
-            st.error("Add a title and a description.")
-        elif project_link and (
-            parsed_link.scheme not in {"http", "https"} or not parsed_link.netloc
-        ):
-            st.error("Enter a valid project URL starting with http:// or https://.")
-        else:
-            with st.spinner("Saving..."):
-                try:
-                    add_project(title.strip(), description.strip(), files or [], project_link or None)
-                    if github_enabled():
-                        st.toast("Project saved and synced to GitHub.")
-                    else:
-                        st.toast("Project saved temporarily; enable GitHub sync to keep it.")
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"Couldn't save the project: {e}")
-
-    projects = load_projects()
-    if projects:
-        st.subheader("Your projects")
-        for p in projects:
-            c1, c2 = st.columns([5, 1])
-            c1.write(f"**{p['title']}**  ·  {p.get('date', '')}")
-            if c2.button("Delete", key=f"del_{p['id']}"):
-                try:
-                    delete_project(p["id"])
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"Couldn't delete: {e}")
-
-    if st.button("Log out"):
-        st.session_state.admin_ok = False
-        st.rerun()
-
-
-# ============================================================
-# 12. ROUTER
-# ============================================================
-
-if page == "Chat":
-    render_chat()
-elif page == "Projects":
-    render_projects()
-else:
-    render_manage()
+render_chat()
