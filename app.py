@@ -111,6 +111,7 @@ def extract_portfolio_data():
         reader = PdfReader(str(PDF_PATH))
         return "\n".join((page.extract_text() or "") for page in reader.pages)
     
+    except Exception as e:
         return f"Error reading PDF: {e}"
 
 
