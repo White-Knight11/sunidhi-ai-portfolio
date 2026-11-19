@@ -96,7 +96,7 @@ if not GEMINI_API_KEY:
     )
     st.stop()
 
-client = genai.Client(api_key=GEMINI_API_KEY)
+client = genai.Client(api_key=GEMINI_API_KEY, http_options=types.HttpOptions(api_version="v1beta"))
 
 
 # ============================================================
@@ -110,7 +110,7 @@ def extract_portfolio_data():
     try:
         reader = PdfReader(str(PDF_PATH))
         return "\n".join((page.extract_text() or "") for page in reader.pages)
-    except Exception as e:
+    
         return f"Error reading PDF: {e}"
 
 
